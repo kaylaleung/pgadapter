@@ -132,6 +132,11 @@ public class IntermediateStatement {
   }
 
   /**
+   * Update the statement count by one
+   */
+  public void updateCount() { this.updateCount++; }
+
+  /**
    * @return True if at some point in execution, and exception was thrown.
    */
   public boolean hasException() {

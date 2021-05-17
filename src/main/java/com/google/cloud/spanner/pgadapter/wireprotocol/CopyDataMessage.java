@@ -14,9 +14,23 @@
 
 package com.google.cloud.spanner.pgadapter.wireprotocol;
 
+import com.google.cloud.spanner.Mutation;
+import com.google.cloud.spanner.Mutation.WriteBuilder;
+import com.google.cloud.spanner.jdbc.CloudSpannerJdbcConnection;
 import com.google.cloud.spanner.pgadapter.ConnectionHandler;
+import com.google.cloud.spanner.pgadapter.statements.IntermediateStatement;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
 /**
  * Normally used to send data to the back-end. Spanner does not currently support this, so send will
@@ -29,6 +43,7 @@ public class CopyDataMessage extends ControlMessage {
   protected static final char IDENTIFIER = 'd';
 
   private byte[] payload;
+  private IntermediateStatement statement;
 
   public CopyDataMessage(ConnectionHandler connection) throws Exception {
     super(connection);
@@ -36,12 +51,14 @@ public class CopyDataMessage extends ControlMessage {
     if (this.inputStream.read(this.payload) < 0) {
       throw new IOException("Could not read copy data.");
     }
+    this.statement = connection.getActiveStatement();
   }
 
   @Override
   protected void sendPayload() throws Exception {
-    throw new IllegalStateException(
-        "Spanner does not currently support the copy functionality through the proxy.");
+    String rowData = new String(this.payload, StandardCharsets.UTF_8).trim();
+    writeToSpanner(rowData);
+    this.statement.updateCount();
   }
 
   @Override
@@ -61,5 +78,36 @@ public class CopyDataMessage extends ControlMessage {
 
   public byte[] getPayload() {
     return this.payload;
+  }
+
+  public void writeToSpanner(String data)
+      throws IOException, SQLException {
+    Iterable<CSVRecord> records = CSVParser.parse(data, CSVFormat.POSTGRESQL_TEXT);
+
+    // TODO: Clean this up for option flags
+    // TODO: Support types specified by table columns
+    List<Mutation> mutations = new ArrayList<>();
+    Map<String, String> tableColumns = new LinkedHashMap<>();
+
+    String tableName = "keyvalue"; // TODO: Replace this
+    tableColumns.put("key", "placeholder"); // TODO: Replace this
+    tableColumns.put("value", "placeholder"); // TODO: Replace this
+
+    for (CSVRecord record : records) {
+      int index = 0;
+      WriteBuilder builder = Mutation.newInsertOrUpdateBuilder(tableName);
+      for (String columnName : tableColumns.keySet()) {
+        String recordValue = record.get(index);
+        index++;
+        if (recordValue != null) {
+          builder.set(columnName).to(recordValue);
+        }
+      }
+      mutations.add(builder.build());
+      Connection connection = this.connection.getJdbcConnection();
+      CloudSpannerJdbcConnection spannerConnection = connection
+          .unwrap(CloudSpannerJdbcConnection.class);
+      spannerConnection.write(mutations);
+    }
   }
 }

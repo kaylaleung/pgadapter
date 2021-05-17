@@ -220,6 +220,10 @@ public class ConnectionHandler extends Thread {
     activeStatementsMap.put(this.connectionId, statement);
   }
 
+  public synchronized IntermediateStatement getActiveStatement() {
+    return activeStatementsMap.get(this.connectionId);
+  }
+
   /**
    * Remove a statement from the buffer if it is currently executing. For more information on this
    * use-case, read addActiveStatement comment.

@@ -15,6 +15,8 @@
 package com.google.cloud.spanner.pgadapter.wireprotocol;
 
 import com.google.cloud.spanner.pgadapter.ConnectionHandler;
+import com.google.cloud.spanner.pgadapter.wireoutput.ReadyResponse;
+import com.google.cloud.spanner.pgadapter.wireoutput.ReadyResponse.Status;
 import java.text.MessageFormat;
 
 /**
@@ -36,8 +38,7 @@ public class CopyFailMessage extends ControlMessage {
 
   @Override
   protected void sendPayload() throws Exception {
-    throw new IllegalStateException(
-        "Spanner does not currently support the copy functionality through the proxy.");
+    new ReadyResponse(this.outputStream, Status.IDLE).send();
   }
 
   @Override

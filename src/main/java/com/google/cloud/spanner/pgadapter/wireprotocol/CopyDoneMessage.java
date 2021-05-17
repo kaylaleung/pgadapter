@@ -15,6 +15,10 @@
 package com.google.cloud.spanner.pgadapter.wireprotocol;
 
 import com.google.cloud.spanner.pgadapter.ConnectionHandler;
+import com.google.cloud.spanner.pgadapter.ConnectionHandler.QueryMode;
+import com.google.cloud.spanner.pgadapter.statements.IntermediateStatement;
+import com.google.cloud.spanner.pgadapter.wireoutput.ReadyResponse;
+import com.google.cloud.spanner.pgadapter.wireoutput.ReadyResponse.Status;
 import java.text.MessageFormat;
 
 /**
@@ -26,15 +30,18 @@ import java.text.MessageFormat;
 public class CopyDoneMessage extends ControlMessage {
 
   protected static final char IDENTIFIER = 'c';
+  private IntermediateStatement statement;
 
   public CopyDoneMessage(ConnectionHandler connection) throws Exception {
     super(connection);
+    this.statement = connection.getActiveStatement();
   }
 
   @Override
   protected void sendPayload() throws Exception {
-    throw new IllegalStateException(
-        "Spanner does not currently support the copy functionality through the proxy.");
+    this.sendSpannerResult(this.statement, QueryMode.SIMPLE, 0L);
+    new ReadyResponse(this.outputStream, Status.IDLE).send();
+    this.connection.removeActiveStatement(this.statement);
   }
 
   @Override
